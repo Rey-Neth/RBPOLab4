@@ -1,0 +1,994 @@
+{
+  "info": {
+    "name": "Лабораторная 4",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "userPassword",
+      "value": "TestAccount123!"
+    },
+    {
+      "key": "adminPassword",
+      "value": "TestAdmin123!"
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Получить CSRF-токен",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/csrf",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('ownerLogin', 'user_' + Date.now().toString(36));",
+              "pm.collectionVariables.set('endDate', new Date(Date.now() + 86400000).toISOString().slice(0,19));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });",
+              "pm.collectionVariables.set('csrf', pm.response.json().token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Слабый пароль: отказ",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/register",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\":\"{{ownerLogin}}\",\"password\":\"weak\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Регистрация: всегда USER",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/register",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\":\"{{ownerLogin}}\",\"password\":\"{{userPassword}}\",\"role\":\"ADMIN\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });",
+              "pm.collectionVariables.set('ownerId', pm.response.json().id);",
+              "pm.test('Проверка результата', function () { pm.expect(pm.response.json().role).to.eql('USER'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Повторный логин: отказ",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/auth/register",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\":\"{{ownerLogin}}\",\"password\":\"{{userPassword}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 409', function () { pm.response.to.have.status(409); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Неверный пароль: отказ",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/auth/me",
+        "header": [],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "wrong-password",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 401', function () { pm.response.to.have.status(401); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. CSRF после входа",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/csrf",
+        "header": [],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{ownerLogin}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });",
+              "pm.collectionVariables.set('csrf', pm.response.json().token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. USER не видит список пользователей",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/users",
+        "header": [],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{ownerLogin}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 403', function () { pm.response.to.have.status(403); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Без CSRF: отказ",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/surveys",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{ownerLogin}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Мой опрос\",\"authorId\":{{ownerId}},\"endDate\":\"{{endDate}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 403', function () { pm.response.to.have.status(403); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09. Создать свой опрос",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/surveys",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{ownerLogin}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Мой опрос\",\"authorId\":{{ownerId}},\"endDate\":\"{{endDate}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });",
+              "pm.collectionVariables.set('surveyId', pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Без вопросов публикация запрещена",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/surveys/{{surveyId}}/publish",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{ownerLogin}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Добавить вопрос",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/survey-questions",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{ownerLogin}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"surveyId\":{{surveyId}},\"text\":\"Всё понятно?\",\"required\":true,\"options\":[\"Да\",\"Нет\"]}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });",
+              "pm.collectionVariables.set('questionId', pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Опубликовать",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/surveys/{{surveyId}}/publish",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{ownerLogin}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Респондент начинает прохождение",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/survey-participations",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "respondent",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"surveyId\":{{surveyId}},\"respondentId\":2}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });",
+              "pm.collectionVariables.set('participationId', pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Ответить",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/survey-answers",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "respondent",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"participationId\":{{participationId}},\"questionId\":{{questionId}},\"selectedValue\":\"Да\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Отправить ответы",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/survey-participations/{{participationId}}/submit",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "respondent",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. Начать заново",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/survey-participations/{{participationId}}/restart",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "respondent",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17. Чужой опрос закрыть нельзя",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/surveys/{{surveyId}}/close",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "respondent",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 403', function () { pm.response.to.have.status(403); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18. Владелец закрывает опрос",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/surveys/{{surveyId}}/close",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{ownerLogin}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "19. Копировать в черновик",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/surveys/{{surveyId}}/copy",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{ownerLogin}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "20. ADMIN видит список пользователей",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/users",
+        "header": [],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "21. ADMIN блокирует аккаунт",
+      "request": {
+        "method": "PATCH",
+        "url": "{{baseUrl}}/api/users/{{ownerId}}",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"enabled\":false}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "22. Заблокированному вход запрещён",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/auth/me",
+        "header": [],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{ownerLogin}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{userPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 401', function () { pm.response.to.have.status(401); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "23. ADMIN удаляет созданные данные",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/api/users/{{ownerId}}",
+        "header": [
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf}}"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 204', function () { pm.response.to.have.status(204); });",
+              "pm.test('Пароли и хеши скрыты', function () { pm.expect(pm.response.text()).not.to.include('\"password\"'); pm.expect(pm.response.text()).not.to.include('\"passwordHash\"'); pm.expect(pm.response.text()).not.to.include('password_hash'); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
